@@ -1,0 +1,45 @@
+name: CD - Production Update
+run-name: Update Production Helm Tag
+
+on:
+  push:
+    branches:
+      - "main"
+
+env:
+  HELM_REPO: ${{ github.repository }}
+  VALUES_PATH: charts/sample/values-prod.yaml
+
+jobs:
+  update-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Helm Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set Version
+        id: set-env
+        run: |
+          VERSION=$(echo "${{ github.sha }}" | cut -c 1-7)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Update Image Tag in Helm Values
+        run: |
+          # Install yq
+          sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq && sudo chmod +x /usr/bin/yq
+          
+          # Update the tag (assuming path image.tag)
+          yq -i ".image.tag = \"${{ env.VERSION }}\"" ${{ env.VALUES_PATH }}
+
+      - name: Commit and Push changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add ${{ env.VALUES_PATH }}
+          git commit -m "chore(prod): update image tag to ${{ env.VERSION }}"
+          git push origin main
